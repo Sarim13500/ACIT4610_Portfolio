@@ -1,6 +1,5 @@
 import gym
 import numpy as np
-import random
 import matplotlib.pyplot as plt
 
 # Initialize the Taxi-v3 environment
@@ -13,7 +12,7 @@ epsilon = 1.0  # Exploration rate
 epsilon_min = 0.1  # Minimum exploration rate
 epsilon_decay = 0.995  # Rate at which exploration rate decays
 episodes = 10000  # Total number of episodes
-max_steps = 100  # Max steps per episode
+max_steps = 150  # Max steps per episode
 
 # Q-table
 q_table = np.zeros([env.observation_space.n, env.action_space.n])
@@ -77,8 +76,7 @@ def q_learning(env, num_episodes, learning_rate, discount_factor, epsilon_decay)
     return rewards, Q
 
 
-# Evaluate the trained agent
-def evaluate_agent():
+def evaluate_agent(q_table):
     total_rewards = []
     for episode in range(100):
         state = env.reset()  # Reset the environment
@@ -98,15 +96,12 @@ def evaluate_agent():
                 next_state, reward, done, info, extra_info = step_output  # Unpack all 5 outputs
             elif len(step_output) == 4:
                 next_state, reward, done, info = step_output
-                extra_info = None  # Or handle as needed
             elif len(step_output) == 3:
                 next_state, reward, done = step_output
-                info = {}  # Or handle as needed
-                extra_info = None
+                info = {}
             else:
                 raise ValueError(f"Unexpected number of outputs from env.step: {len(step_output)}")
 
-            # If the next_state is a tuple, take the first element
             if isinstance(next_state, tuple):
                 next_state = next_state[0]
 
@@ -138,9 +133,10 @@ if __name__ == "__main__":
     rewards, q_table = q_learning(env, episodes, alpha, gamma, epsilon_decay)
 
     print("Evaluating the trained agent...")
-    evaluate_agent()
+    evaluate_agent(q_table)
 
     print("Plotting results...")
     plot_rewards(rewards)
 
     print("Training completed.")
+
