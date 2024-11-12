@@ -3,7 +3,6 @@ This project addresses three major tasks, each focused on applying optimization 
 
 Table of Contents
 -Overview
--Project Structure
 -Tasks
 -Task 2: Comparative Analysis of Evolutionary Programming and Evolutionary Strategies for Portfolio Optimization
 -Task 3: Solving the Vehicle Routing Problem with Time Windows using ACO and PSO
@@ -14,30 +13,6 @@ Table of Contents
 
 Overview
 This project consists of three tasks that demonstrate the application of evolutionary strategies, metaheuristics, and reinforcement learning to solve complex optimization problems.
-
-Project Structure:
-
-project_folder/
-├── results/                # Folder for saving results from Task 2
-├── stocks_csv/             # Folder containing stock data in CSV format
-├── script_task2/           # Scripts for Task 2 - Portfolio Optimization
-│   ├── (μ + λ) Evolutionary Strategies.py
-│   ├── (μ, λ) Evolutionary Strategies.py
-│   ├── advanced_ep.py
-│   ├── advanced_es.py
-│   ├── basic_ep.py
-│   ├── basic_es.py
-│   ├── covariance_matrix.py
-│   ├── main.py
-│   ├── monthly_returns.py
-│   └── save_stocks_data.py
-├── script_task3/           # Scripts for Task 3 - Vehicle Routing Problem with Time Windows
-│   ├── Task_3.py
-│   └── c101.txt
-├── script_task4/           # Scripts for Task 4 - Autonomous Taxi Navigation
-│   └── Task_4.py
-├── README.md
-└── requirements.txt
 
 
 Tasks
