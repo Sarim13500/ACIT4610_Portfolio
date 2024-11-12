@@ -1,123 +1,188 @@
-import random
 import numpy as np
+import random
+import matplotlib.pyplot as plt
 
 
+# Function to load customers from the "c101.txt" file
+def load_customers_from_file(filename):
+    customers = []
+    with open(filename, 'r') as f:
+        lines = f.readlines()[7:]  # Skip first 7 lines (headers)
+
+        for line in lines:
+            parts = list(map(int, line.split()))  # Convert to integers
+            customer_id = parts[0]
+            x_coord = parts[1]
+            y_coord = parts[2]
+            demand = parts[3]
+            ready_time = parts[4]
+            due_date = parts[5]
+            service_time = parts[6] if len(parts) > 6 else 0  # Service time (optional)
+            customers.append((customer_id, x_coord, y_coord, demand, ready_time, due_date, service_time))
+
+    return customers
+
+
+# Load customers from file
+customers_data = load_customers_from_file('c101.txt')
+
+
+# Distance calculation function
 def calculate_distance(customer1, customer2):
-    """ Calculate Euclidean distance between two customers. """
-    return np.sqrt((customer1['xcoord'] - customer2['xcoord']) ** 2 +
-                   (customer1['ycoord'] - customer2['ycoord']) ** 2)
+    return np.sqrt((customer1[1] - customer2[1]) ** 2 + (customer1[2] - customer2[2]) ** 2)
 
 
-class AntColonyOptimizer:
-    def __init__(self, customers, vehicle_capacity, iterations, num_ants):
+# Plotting function to display customer coordinates on a grid
+def plot_customers(customers):
+    x_coords = [customer[1] for customer in customers]
+    y_coords = [customer[2] for customer in customers]
+
+    plt.figure(figsize=(8, 8))
+    plt.scatter(x_coords, y_coords, color='blue', marker='o')
+
+    # Annotate customers and depot
+    for customer in customers:
+        if customer[0] == 0:
+            plt.text(customer[1], customer[2], f"Depot {customer[0]}", fontsize=12, ha='right', color='red')
+        else:
+            plt.text(customer[1], customer[2], f"Customer {customer[0]}", fontsize=12, ha='right')
+
+    plt.grid(True)
+    plt.xlabel("X Coordinate")
+    plt.ylabel("Y Coordinate")
+    plt.title("Customer Locations on Grid")
+    plt.show()
+
+# ACO class
+class AntColony:
+    def __init__(self, customers, n_ants=10, n_iterations=100, pheromone_factor=1, distance_factor=1):
         self.customers = customers
-        self.vehicle_capacity = vehicle_capacity
-        self.iterations = iterations
-        self.num_ants = num_ants
-        self.pheromone = np.ones((len(customers), len(customers)))  # Initialize pheromone levels
-        self.alpha = 1  # Pheromone importance
-        self.beta = 2  # Distance importance
-        self.evaporation_rate = 0.5  # Rate at which pheromone evaporates
+        self.n_ants = n_ants
+        self.n_iterations = n_iterations
+        self.pheromone_factor = pheromone_factor
+        self.distance_factor = distance_factor
+        self.pheromone = np.ones((len(customers), len(customers)))  # Initialize pheromone matrix
+        self.best_solution = None
+        self.best_cost = float('inf')
 
     def run(self):
-        for _ in range(self.iterations):
-            all_routes = []
-            for _ in range(self.num_ants):
-                route = self.construct_route()
-                print(f"Constructed Route: {route}")  # Debugging line
-                all_routes.append(route)
+        for _ in range(self.n_iterations):
+            for _ in range(self.n_ants):
+                solution = self.construct_solution()
+                cost = self.calculate_cost(solution)
+                if cost < self.best_cost:
+                    self.best_cost = cost
+                    self.best_solution = solution
+        return self.best_solution, self.best_cost
 
-            self.update_pheromone(all_routes)
-            self.evaluate_routes(all_routes)
+    def construct_solution(self):
+        unvisited = set(range(1, len(self.customers)))  # Exclude depot
+        solution = [0]  # Start at depot
+        current_customer = 0
 
-    def construct_route(self):
-        route = [0]  # Start at the depot (customer 0)
-        total_demand = 0
-        current_time = 0
+        while unvisited:
+            next_customer = self.choose_next_customer(current_customer, unvisited)
+            solution.append(next_customer)
+            current_customer = next_customer
+            unvisited.remove(next_customer)
 
-        while len(route) < len(self.customers) - 1:  # -1 to keep room for returning to depot
-            next_customer = self.select_next_customer(route, total_demand, current_time)
-            if next_customer is not None:
-                route.append(next_customer)
-                total_demand += self.customers[next_customer]['demand']
-                travel_time = calculate_distance(self.customers[route[-2]], self.customers[next_customer])
-                current_time += travel_time + self.customers[next_customer]['service_time']
-            else:
-                break
+        solution.append(0)  # Return to depot
+        return solution
 
-        route.append(0)  # Return to depot
-        print(f"Final Route: {route}")  # Debugging line
-        return route
-
-    def select_next_customer(self, route, total_demand, current_time):
-        """ Select the next customer based on pheromone and distance. """
-        last_customer = route[-1]
+    def choose_next_customer(self, current_customer, unvisited):
+        # Calculate probabilities based on distance and pheromone levels
         probabilities = []
-        customer_indices = []  # Keep track of valid customer indices
-        for i in range(1, len(self.customers)):  # Skip the depot
-            if i not in route:  # Avoid visiting already visited customers
-                demand = self.customers[i]['demand']
-                if total_demand + demand <= self.vehicle_capacity:
-                    pheromone_level = self.pheromone[last_customer][i]
-                    distance = calculate_distance(self.customers[last_customer], self.customers[i])
-                    probabilities.append((pheromone_level ** self.alpha) * ((1 / distance) ** self.beta))
-                    customer_indices.append(i)  # Store valid customer index
+        for next_customer in unvisited:
+            pheromone_level = self.pheromone[current_customer][next_customer] ** self.pheromone_factor
+            distance = calculate_distance(self.customers[current_customer], self.customers[next_customer]) ** (-self.distance_factor)
+            probabilities.append(pheromone_level * distance)
 
-        if not probabilities:
-            return None  # No valid next customer
-
-        # Normalize probabilities
         total = sum(probabilities)
         probabilities = [p / total for p in probabilities]
 
-        return np.random.choice(customer_indices, p=probabilities)  # Randomly select the next customer
+        # Choose next customer based on probability
+        return random.choices(list(unvisited), probabilities)[0]
 
-    def update_pheromone(self, all_routes):
-        """ Update pheromone levels based on the routes found. """
-        for route in all_routes:
-            distance = self.calculate_route_distance(route)
-            pheromone_contribution = 1 / distance if distance > 0 else 0
+    def calculate_cost(self, solution):
+        total_cost = 0
+        for i in range(len(solution) - 1):
+            total_cost += calculate_distance(self.customers[solution[i]], self.customers[solution[i + 1]])
+        return total_cost
 
-            for i in range(len(route) - 1):
-                self.pheromone[route[i]][route[i + 1]] += pheromone_contribution
+# PSO class
+class ParticleSwarm:
+    def __init__(self, customers, n_particles=10, n_iterations=100):
+        self.customers = customers
+        self.n_particles = n_particles
+        self.n_iterations = n_iterations
+        self.best_solution = None
+        self.best_cost = float('inf')
+        self.particles = [self.construct_solution() for _ in range(n_particles)]
+        self.particle_best_solutions = self.particles[:]
+        self.particle_best_costs = [self.calculate_cost(sol) for sol in self.particles]
 
-        # Apply evaporation
-        self.pheromone *= (1 - self.evaporation_rate)
+    def run(self):
+        for _ in range(self.n_iterations):
+            for i in range(self.n_particles):
+                solution = self.particles[i]
+                cost = self.calculate_cost(solution)
 
-    def calculate_route_distance(self, route):
-        """ Calculate total distance of the given route. """
-        if len(route) < 2:
-            print(f"Invalid route: {route}")  # Debugging line
-            return float('inf')  # No valid route to calculate
+                # Update personal best
+                if cost < self.particle_best_costs[i]:
+                    self.particle_best_costs[i] = cost
+                    self.particle_best_solutions[i] = solution
 
-        total_distance = 0
-        for i in range(len(route) - 1):
-            print(f"Calculating distance between {route[i]} and {route[i + 1]}")  # Debugging line
-            total_distance += calculate_distance(self.customers[route[i]], self.customers[route[i + 1]])
-        return total_distance
+                # Update global best
+                if cost < self.best_cost:
+                    self.best_cost = cost
+                    self.best_solution = solution
 
-    def evaluate_routes(self, all_routes):
-        """ Evaluate the routes and find the best one. """
-        # Placeholder for evaluating routes if needed
-        pass
+                # Move particle
+                self.particles[i] = self.move_particle(solution)
 
+        return self.best_solution, self.best_cost
 
-def main():
-    customers = [
-        {'xcoord': 40, 'ycoord': 50, 'demand': 0, 'service_time': 0},
-        {'xcoord': 45, 'ycoord': 68, 'demand': 10, 'service_time': 90},
-        {'xcoord': 45, 'ycoord': 70, 'demand': 30, 'service_time': 90},
-        # ... Add other customers here, following the same structure
-        {'xcoord': 55, 'ycoord': 85, 'demand': 20, 'service_time': 90},
-    ]
+    def construct_solution(self):
+        unvisited = set(range(1, len(self.customers)))  # Exclude depot
+        solution = [0]  # Start at depot
+        current_customer = 0
 
-    vehicle_capacity = 200
-    iterations = 100
-    num_ants = 10
+        while unvisited:
+            next_customer = random.choice(list(unvisited))  # Randomly pick a customer
+            solution.append(next_customer)
+            current_customer = next_customer
+            unvisited.remove(next_customer)
 
-    aco = AntColonyOptimizer(customers, vehicle_capacity, iterations, num_ants)
-    aco.run()
+        solution.append(0)  # Return to depot
+        return solution
 
+    def move_particle(self, solution):
+        # Randomly swap two customers to simulate particle movement
+        if len(solution) > 3:  # Avoid swapping depot
+            i, j = random.sample(range(1, len(solution) - 1), 2)
+            solution[i], solution[j] = solution[j], solution[i]
+        return solution
 
+    def calculate_cost(self, solution):
+        total_cost = 0
+        for i in range(len(solution) - 1):
+            total_cost += calculate_distance(self.customers[solution[i]], self.customers[solution[i + 1]])
+        return total_cost
+
+# Running ACO and PSO
 if __name__ == "__main__":
-    main()
+    print("Running Ant Colony Optimization...")
+    aco = AntColony(customers_data)
+    aco_best_solution, aco_best_cost = aco.run()
+    print(f"Best Solution (ACO): {aco_best_solution}")
+    print(f"Best Cost (ACO): {aco_best_cost}")
+
+    print("Running Particle Swarm Optimization...")
+    pso = ParticleSwarm(customers_data)
+    pso_best_solution, pso_best_cost = pso.run()
+    print(f"Best Solution (PSO): {pso_best_solution}")
+    print(f"Best Cost (PSO): {pso_best_cost}")
+
+    # Plot customer locations
+    print("Plotting customer locations...")
+    plot_customers(customers_data)
